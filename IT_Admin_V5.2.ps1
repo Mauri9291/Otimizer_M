@@ -14,29 +14,23 @@ chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # --- INICIO DE LA MEMORIA RAM DEL SCRIPT Y PROTOCOLOS MODERNOS ---
-# Forzar TLS 1.3 y 1.2 para máxima compatibilidad en 2026
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls13 -bor [Net.SecurityProtocolType]::Tls12
 
-# Persistencia de sesión para módulo de arrepentimiento
 $LogPath = "$env:TEMP\installs_session.log"
 if (Test-Path $LogPath) { $global:HistorialApps = @(Get-Content $LogPath) } else { $global:HistorialApps = @() }
 
-# 2. FUNCIONES NUCLEARES DE DESPLIEGUE
 Write-Host "`n[!] Verificando estado del motor Winget..." -ForegroundColor DarkGray
 
 function Instalar-Paquete {
     param (
         [string]$Nombre,
         [string]$WingetID,
-        [switch]$PerUser  # FIX: algunos paquetes como Spotify no soportan --scope machine
+        [switch]$PerUser
     )
     Write-Host "`n[+] Instalando: $Nombre ($WingetID)..." -ForegroundColor Cyan
-
-    # Si el paquete es per-user, se omite --scope machine para evitar error de conflicto
     $Scope = if ($PerUser) { "" } else { "--scope machine" }
     $ArgList = "install --id $WingetID --exact --silent --accept-package-agreements --accept-source-agreements $Scope --force"
     $Proceso = Start-Process winget -ArgumentList $ArgList -Wait -PassThru -NoNewWindow
-
     if ($Proceso.ExitCode -eq 0 -or $Proceso.ExitCode -eq -1978335189 -or $Proceso.ExitCode -eq 0x8a150056) {
         Write-Host "    [ OK ] Instalación exitosa o ya presente." -ForegroundColor Green
         if ($WingetID -notin $global:HistorialApps) {
@@ -51,16 +45,12 @@ function Instalar-Paquete {
 function Procesar-Lote {
     param ([array]$PaquetesAInstalar)
     if ($PaquetesAInstalar.Count -eq 0) { return }
-
     Write-Host "`n[!] RESUMEN DE INSTALACIÓN (STAGING):" -ForegroundColor Cyan
     foreach ($App in $PaquetesAInstalar) { Write-Host " -> $($App.Nombre)" -ForegroundColor White }
-
     do {
         $Confirmacion = (Read-Host "`n¿Proceder con la instalación? (Y/N)").Trim().ToLower()
     } until ($Confirmacion -in @('y', 'n'))
-
     if ($Confirmacion -eq 'y') {
-        # FIX: se pasa el flag PerUser desde el objeto del paquete
         foreach ($App in $PaquetesAInstalar) {
             Instalar-Paquete -Nombre $App.Nombre -WingetID $App.ID -PerUser:($App.PerUser -eq $true)
         }
@@ -71,7 +61,6 @@ function Procesar-Lote {
     Write-Host "Presiona ENTER para continuar..." -ForegroundColor Yellow; Read-Host
 }
 
-# 3. MOTOR DE ESTADOS (RUTEO PRINCIPAL)
 $EstadoMenu = "Principal"
 while ($EstadoMenu -ne "Salir") {
     Clear-Host
@@ -92,7 +81,6 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "0. Salir del Sistema"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona una opción"
-
             if ($Opcion -eq '1') { $EstadoMenu = "SeccionApps" }
             elseif ($Opcion -eq '2') { $EstadoMenu = "SeccionDrivers" }
             elseif ($Opcion -eq '3') { $EstadoMenu = "SeccionPostInstall" }
@@ -102,7 +90,6 @@ while ($EstadoMenu -ne "Salir") {
             elseif ($Opcion -eq '0') { $EstadoMenu = "Salir" }
         }
 
-        # --- MÓDULO 1: APPS ---
         "SeccionApps" {
             Write-Host "MÓDULO 1: APPS > CATEGORÍAS" -ForegroundColor Yellow
             Write-Host "1. Gaming"
@@ -150,7 +137,6 @@ while ($EstadoMenu -ne "Salir") {
             $Lista = @()
             foreach ($Opc in ($Entrada -split '\s+')) {
                 switch ($Opc) {
-                    # FIX: Spotify usa PerUser = $true porque no soporta --scope machine
                     '1' { $Lista += [pscustomobject]@{ Nombre = "Spotify"; ID = "Spotify.Spotify"; PerUser = $true } }
                     '2' { $Lista += [pscustomobject]@{ Nombre = "YouTube Music"; ID = "Ytmdesktop.Ytmdesktop"; PerUser = $false } }
                 }
@@ -253,7 +239,6 @@ while ($EstadoMenu -ne "Salir") {
             Procesar-Lote -PaquetesAInstalar $Lista
         }
 
-        # --- MÓDULO 2: DRIVERS ---
         "SeccionDrivers" {
             Write-Host "MÓDULO 2: DRIVERS > PORTALES DE DESCARGA OFICIALES" -ForegroundColor Yellow
             Write-Host "1. NVIDIA (GeForce Game Ready / Studio)"
@@ -263,7 +248,6 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona el fabricante"
             switch ($Opcion) {
-                # FIX: se agrega $EstadoMenu = "Principal" para evitar loop infinito al abrir el browser
                 '1' { Start-Process "https://www.nvidia.com/Download/index.aspx?lang=es"; $EstadoMenu = "Principal"; Start-Sleep -Seconds 1 }
                 '2' { Start-Process "https://www.amd.com/es/support/download/drivers.html"; $EstadoMenu = "Principal"; Start-Sleep -Seconds 1 }
                 '3' { Start-Process "https://www.intel.la/content/www/xl/es/download-center/home.html"; $EstadoMenu = "Principal"; Start-Sleep -Seconds 1 }
@@ -271,7 +255,6 @@ while ($EstadoMenu -ne "Salir") {
             }
         }
 
-        # --- MÓDULO 3: POST INSTALL ---
         "SeccionPostInstall" {
             Write-Host "MÓDULO 3: POST INSTALL > TWEAKS Y ACTIVACIÓN" -ForegroundColor Yellow
             Write-Host "1. Activación del Sistema (MAS Automático)"
@@ -283,7 +266,6 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona una tarea"
-
             switch ($Opcion) {
                 '1' {
                     Write-Host "`n[+] Ejecutando MAS (User-Agent inyectado)..." -ForegroundColor Cyan
@@ -317,11 +299,9 @@ while ($EstadoMenu -ne "Salir") {
                         }
                         $Best = $Results | Sort-Object Latency | Select-Object -First 1
                         Write-Host "    [*] Ganador: $($Best.Provider) con $($Best.Latency)ms" -ForegroundColor Green
-
                         if ($Best.Provider -eq "Cloudflare") { $DnsServers = "1.1.1.1", "1.0.0.1" }
                         elseif ($Best.Provider -eq "Quad9") { $DnsServers = "9.9.9.9", "149.112.112.112" }
                         else { $DnsServers = "8.8.8.8", "8.8.4.4" }
-
                         $ActiveAdapters = Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null }
                         if ($ActiveAdapters) {
                             foreach ($Adapter in $ActiveAdapters) { Set-DnsClientServerAddress -InterfaceIndex $Adapter.InterfaceIndex -ServerAddresses $DnsServers }
@@ -344,9 +324,7 @@ while ($EstadoMenu -ne "Salir") {
                         $ControladoresVideo = Get-CimInstance -ClassName Win32_VideoController -ErrorAction Stop
                         $GpuCompatible = $false
                         $ModeloDetectado = ""
-
                         foreach ($GPU in $ControladoresVideo) {
-                            # FIX: se agrega soporte para Intel Arc (A-series y B-series)
                             if ($GPU.Name -match "NVIDIA GeForce.*(GTX|RTX)" -or
                                 $GPU.Name -match "AMD Radeon.*RX" -or
                                 $GPU.Name -match "Intel.*Arc.*(A|B)\d{3}") {
@@ -355,12 +333,10 @@ while ($EstadoMenu -ne "Salir") {
                                 break
                             }
                         }
-
                         if ($GpuCompatible) {
                             Write-Host "    [!] Hardware dedicado detectado: $ModeloDetectado" -ForegroundColor White
                             $RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
                             if (-not (Test-Path $RegistryPath)) { New-Item -Path $RegistryPath -Force | Out-Null }
-
                             Set-ItemProperty -Path $RegistryPath -Name "HwSchMode" -Value 2 -Type DWord
                             Write-Host "    [ OK ] Hardware Accelerated GPU Scheduling (HAGS) inyectado. Reinicio requerido." -ForegroundColor Green
                         } else {
@@ -374,7 +350,6 @@ while ($EstadoMenu -ne "Salir") {
             }
         }
 
-        # --- MÓDULO 4: MANTENIMIENTO ---
         "SeccionMantenimiento" {
             Write-Host "MÓDULO 4: MANTENIMIENTO > LIMPIEZA Y REPARACIÓN" -ForegroundColor Yellow
             Write-Host "1. Reparación de Integridad del Sistema (DISM + SFC)"
@@ -407,7 +382,6 @@ while ($EstadoMenu -ne "Salir") {
             }
         }
 
-        # --- MÓDULO 5: DESCARGAS WINDOWS ---
         "SeccionOS" {
             Write-Host "MÓDULO 5: DESCARGAS WINDOWS > DIRECTORIOS MAS OFICIALES" -ForegroundColor Yellow
             Write-Host "1. Obtener ISOs de Windows"
@@ -416,14 +390,12 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona una opción"
             switch ($Opcion) {
-                # FIX: se agrega $EstadoMenu = "Principal" para evitar loop infinito al abrir el browser
                 '1' { Start-Process "https://massgrave.dev/windows_11_links"; $EstadoMenu = "Principal"; Start-Sleep -Seconds 1 }
                 '2' { Start-Process "https://massgrave.dev/office_c2r_links"; $EstadoMenu = "Principal"; Start-Sleep -Seconds 1 }
                 '0' { $EstadoMenu = "Principal" }
             }
         }
 
-        # --- MÓDULO 6: ARREPENTIMIENTO ---
         "SeccionArrepentimiento" {
             Write-Host "SALA DE ARREPENTIMIENTO > ROLLBACK QUIRÚRGICO" -ForegroundColor Red
             Write-Host "1. Deshacer Aplicaciones Instaladas (Purga selectiva de Winget)"
@@ -433,7 +405,6 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             Write-Host "[!] NOTA: Los Tweaks aplicados con CTT deben revertirse desde su interfaz." -ForegroundColor DarkGray
-
             $Opcion = Read-Host "`nSelecciona qué cambio individual deseas revertir"
             switch ($Opcion) {
                 '1' {
@@ -445,9 +416,7 @@ while ($EstadoMenu -ne "Salir") {
                             Write-Host "    $($i + 1). $($global:HistorialApps[$i])" -ForegroundColor White
                         }
                         Write-Host "    0. Cancelar y Volver" -ForegroundColor DarkGray
-
                         $Entrada = Read-Host "`nSelecciona el número de las apps a borrar (Ej: 1 2) o 0 para cancelar"
-
                         if (($Entrada -split '\s+') -notcontains '0') {
                             $AppsABorrar = @()
                             foreach ($Num in ($Entrada -split '\s+')) {
@@ -458,13 +427,11 @@ while ($EstadoMenu -ne "Salir") {
                                     }
                                 }
                             }
-
                             foreach ($AppID in $AppsABorrar) {
                                 Write-Host "`n    -> Desinstalando: $AppID..." -ForegroundColor DarkGray
                                 winget uninstall --id $AppID --silent --accept-source-agreements | Out-Null
                                 Write-Host "    [ OK ] $AppID eliminado del sistema." -ForegroundColor Green
                             }
-
                             $global:HistorialApps = $global:HistorialApps | Where-Object { $_ -notin $AppsABorrar }
                             $global:HistorialApps | Out-File -FilePath $LogPath -Force
                         } else { Write-Host "    [!] Operación cancelada." -ForegroundColor Yellow }
@@ -508,4 +475,3 @@ while ($EstadoMenu -ne "Salir") {
 }
 Write-Host "`nSistema cerrado limpiamente. Desconectando motor." -ForegroundColor DarkGray
 Start-Sleep -Seconds 2
-
