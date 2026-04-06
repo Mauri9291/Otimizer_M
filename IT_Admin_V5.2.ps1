@@ -508,3 +508,4 @@ while ($EstadoMenu -ne "Salir") {
 }
 Write-Host "`nSistema cerrado limpiamente. Desconectando motor." -ForegroundColor DarkGray
 Start-Sleep -Seconds 2
+
