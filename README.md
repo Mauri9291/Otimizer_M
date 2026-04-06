@@ -24,7 +24,7 @@ Menú interactivo en PowerShell con 6 módulos:
 Abrir PowerShell como Administrador y ejecutar:
 
 ```powershell
-$tmp = "$env:TEMP\itadmin.ps1"; irm https://raw.githubusercontent.com/Mauri9291/Otimizer_M/main/IT_Admin_V5.2.ps -OutFile $tmp; powershell -ExecutionPolicy Bypass -File $tmp
+$tmp = "$env:TEMP\itadmin.ps1"; if (Test-Path $tmp) { Remove-Item $tmp -Force }; irm https://raw.githubusercontent.com/Mauri9291/Otimizer_M/main/IT_Admin_V5.2.ps1 -OutFile $tmp; powershell -ExecutionPolicy Bypass -File $tmp
 ```
 
 ---
