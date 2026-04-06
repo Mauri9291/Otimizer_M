@@ -1,29 +1,23 @@
 # ==============================================================================
-# SISTEMA DE ADMINISTRACIÃ“N IT V5.2 - ZERO TOUCH PROVISIONING (PRODUCTION READY)
-# Arquitectura: MÃ¡quina de Estados Modular | Motor: PowerShell 7+ / Winget
+# SISTEMA DE ADMINISTRACIÓN IT V5.2 - ZERO TOUCH PROVISIONING (PRODUCTION READY)
+# Arquitectura: Máquina de Estados Modular | Motor: PowerShell 7+ / Winget
 # ==============================================================================
 
-# 1. VERIFICACIÃ“N ESTRICTA DE PRIVILEGIOS (UAC)
+# 1. VERIFICACIÓN ESTRICTA DE PRIVILEGIOS (UAC)
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
 
-# 1. VERIFICACIÓN ESTRICTA DE PRIVILEGIOS (UAC)
-if (-not ([Security.Principal.WindowsPrincipal]...)) {
-    ...
-    exit
-}
-
-# FIX ENCODING
+# FIX ENCODING: forzar UTF-8 en consola para caracteres en español
 chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # --- INICIO DE LA MEMORIA RAM DEL SCRIPT Y PROTOCOLOS MODERNOS ---
-# Forzar TLS 1.3 y 1.2 para mÃ¡xima compatibilidad en 2026
+# Forzar TLS 1.3 y 1.2 para máxima compatibilidad en 2026
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls13 -bor [Net.SecurityProtocolType]::Tls12
 
-# Persistencia de sesiÃ³n para mÃ³dulo de arrepentimiento
+# Persistencia de sesión para módulo de arrepentimiento
 $LogPath = "$env:TEMP\installs_session.log"
 if (Test-Path $LogPath) { $global:HistorialApps = @(Get-Content $LogPath) } else { $global:HistorialApps = @() }
 
@@ -44,13 +38,13 @@ function Instalar-Paquete {
     $Proceso = Start-Process winget -ArgumentList $ArgList -Wait -PassThru -NoNewWindow
 
     if ($Proceso.ExitCode -eq 0 -or $Proceso.ExitCode -eq -1978335189 -or $Proceso.ExitCode -eq 0x8a150056) {
-        Write-Host "    [ OK ] InstalaciÃ³n exitosa o ya presente." -ForegroundColor Green
+        Write-Host "    [ OK ] Instalación exitosa o ya presente." -ForegroundColor Green
         if ($WingetID -notin $global:HistorialApps) {
             $global:HistorialApps += $WingetID
             $WingetID | Out-File -FilePath $LogPath -Append
         }
     } else {
-        Write-Host "    [ ERROR ] Fallo. CÃ³digo: $($Proceso.ExitCode)" -ForegroundColor Red
+        Write-Host "    [ ERROR ] Fallo. Código: $($Proceso.ExitCode)" -ForegroundColor Red
     }
 }
 
@@ -58,11 +52,11 @@ function Procesar-Lote {
     param ([array]$PaquetesAInstalar)
     if ($PaquetesAInstalar.Count -eq 0) { return }
 
-    Write-Host "`n[!] RESUMEN DE INSTALACIÃ“N (STAGING):" -ForegroundColor Cyan
+    Write-Host "`n[!] RESUMEN DE INSTALACIÓN (STAGING):" -ForegroundColor Cyan
     foreach ($App in $PaquetesAInstalar) { Write-Host " -> $($App.Nombre)" -ForegroundColor White }
 
     do {
-        $Confirmacion = (Read-Host "`nÂ¿Proceder con la instalaciÃ³n? (Y/N)").Trim().ToLower()
+        $Confirmacion = (Read-Host "`n¿Proceder con la instalación? (Y/N)").Trim().ToLower()
     } until ($Confirmacion -in @('y', 'n'))
 
     if ($Confirmacion -eq 'y') {
@@ -72,7 +66,7 @@ function Procesar-Lote {
         }
         Write-Host "`nLote finalizado exitosamente." -ForegroundColor Green
     } else {
-        Write-Host "`nOperaciÃ³n abortada por el administrador." -ForegroundColor Yellow
+        Write-Host "`nOperación abortada por el administrador." -ForegroundColor Yellow
     }
     Write-Host "Presiona ENTER para continuar..." -ForegroundColor Yellow; Read-Host
 }
@@ -82,22 +76,22 @@ $EstadoMenu = "Principal"
 while ($EstadoMenu -ne "Salir") {
     Clear-Host
     Write-Host "=========================================" -ForegroundColor Cyan
-    Write-Host "   SISTEMA DE ADMINISTRACIÃ“N IT V5.2     " -ForegroundColor Cyan
+    Write-Host "   SISTEMA DE ADMINISTRACIÓN IT V5.2     " -ForegroundColor Cyan
     Write-Host "=========================================" -ForegroundColor Cyan
 
     switch ($EstadoMenu) {
 
         "Principal" {
-            Write-Host "MENÃš PRINCIPAL" -ForegroundColor Yellow
+            Write-Host "MENÚ PRINCIPAL" -ForegroundColor Yellow
             Write-Host "1. App Windows (Aprovisionamiento Winget)"
             Write-Host "2. Drivers (Portales Oficiales)"
-            Write-Host "3. Post Install (ActivaciÃ³n, Tweaks, DNS, HAGS)"
-            Write-Host "4. Mantenimiento (Limpieza y ReparaciÃ³n)"
+            Write-Host "3. Post Install (Activación, Tweaks, DNS, HAGS)"
+            Write-Host "4. Mantenimiento (Limpieza y Reparación)"
             Write-Host "5. Descargas Windows y Office (ISOs/C2R)"
             Write-Host "6. Arrepentimiento (Deshacer Cambios)"
             Write-Host "0. Salir del Sistema"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
-            $Opcion = Read-Host "Selecciona una opciÃ³n"
+            $Opcion = Read-Host "Selecciona una opción"
 
             if ($Opcion -eq '1') { $EstadoMenu = "SeccionApps" }
             elseif ($Opcion -eq '2') { $EstadoMenu = "SeccionDrivers" }
@@ -108,20 +102,20 @@ while ($EstadoMenu -ne "Salir") {
             elseif ($Opcion -eq '0') { $EstadoMenu = "Salir" }
         }
 
-        # --- MÃ“DULO 1: APPS ---
+        # --- MÓDULO 1: APPS ---
         "SeccionApps" {
-            Write-Host "MÃ“DULO 1: APPS > CATEGORÃAS" -ForegroundColor Yellow
+            Write-Host "MÓDULO 1: APPS > CATEGORÍAS" -ForegroundColor Yellow
             Write-Host "1. Gaming"
             Write-Host "2. Music"
             Write-Host "3. Chats"
             Write-Host "4. Browsers"
-            Write-Host "5. GestiÃ³n de archivos y compresiÃ³n"
+            Write-Host "5. Gestión de archivos y compresión"
             Write-Host "6. Gestores de descarga"
             Write-Host "7. Streaming"
             Write-Host "8. Herramientas"
-            Write-Host "0. Volver al MenÃº Principal"
+            Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
-            $Opcion = Read-Host "Selecciona una categorÃ­a"
+            $Opcion = Read-Host "Selecciona una categoría"
             switch ($Opcion) {
                 '1' { $EstadoMenu = "Gaming" } '2' { $EstadoMenu = "Music" }
                 '3' { $EstadoMenu = "Chats" } '4' { $EstadoMenu = "Browsers" }
@@ -197,7 +191,7 @@ while ($EstadoMenu -ne "Salir") {
         }
 
         "GestionArchivos" {
-            Write-Host "APPS > GESTIÃ“N ARCHIVOS" -ForegroundColor Yellow
+            Write-Host "APPS > GESTIÓN ARCHIVOS" -ForegroundColor Yellow
             Write-Host "1. WinRAR | 2. 7-Zip | 0. Volver"
             $Entrada = Read-Host "Selecciona apps o 0 para volver"
             if (($Entrada -split '\s+') -contains '0') { $EstadoMenu = "SeccionApps"; continue }
@@ -259,13 +253,13 @@ while ($EstadoMenu -ne "Salir") {
             Procesar-Lote -PaquetesAInstalar $Lista
         }
 
-        # --- MÃ“DULO 2: DRIVERS ---
+        # --- MÓDULO 2: DRIVERS ---
         "SeccionDrivers" {
-            Write-Host "MÃ“DULO 2: DRIVERS > PORTALES DE DESCARGA OFICIALES" -ForegroundColor Yellow
+            Write-Host "MÓDULO 2: DRIVERS > PORTALES DE DESCARGA OFICIALES" -ForegroundColor Yellow
             Write-Host "1. NVIDIA (GeForce Game Ready / Studio)"
             Write-Host "2. AMD (Radeon Graphics / Ryzen Chipsets)"
             Write-Host "3. Intel (Core Processors / Arc Graphics)"
-            Write-Host "0. Volver al MenÃº Principal"
+            Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona el fabricante"
             switch ($Opcion) {
@@ -277,16 +271,16 @@ while ($EstadoMenu -ne "Salir") {
             }
         }
 
-        # --- MÃ“DULO 3: POST INSTALL ---
+        # --- MÓDULO 3: POST INSTALL ---
         "SeccionPostInstall" {
-            Write-Host "MÃ“DULO 3: POST INSTALL > TWEAKS Y ACTIVACIÃ“N" -ForegroundColor Yellow
-            Write-Host "1. ActivaciÃ³n del Sistema (MAS AutomÃ¡tico)"
+            Write-Host "MÓDULO 3: POST INSTALL > TWEAKS Y ACTIVACIÓN" -ForegroundColor Yellow
+            Write-Host "1. Activación del Sistema (MAS Automático)"
             Write-Host "2. Optimizar Windows (Chris Titus Tech WinUtil)"
             Write-Host "3. Optimizar Apps de Arranque (Ajuste de Registro Serialize)"
             Write-Host "4. Optimizar DNS de Red (Auto-Benchmark Multi-Target)"
-            Write-Host "5. Desactivar HibernaciÃ³n (Recuperar espacio en disco)"
-            Write-Host "6. Habilitar HAGS (DetecciÃ³n AutomÃ¡tica GPU NVIDIA/AMD/Intel Arc)"
-            Write-Host "0. Volver al MenÃº Principal"
+            Write-Host "5. Desactivar Hibernación (Recuperar espacio en disco)"
+            Write-Host "6. Habilitar HAGS (Detección Automática GPU NVIDIA/AMD/Intel Arc)"
+            Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona una tarea"
 
@@ -300,7 +294,7 @@ while ($EstadoMenu -ne "Salir") {
                 '2' {
                     Write-Host "`n[+] Lanzando CTT Windows Utility..." -ForegroundColor Cyan
                     try { Invoke-Expression (Invoke-RestMethod -Uri "https://christitus.com/win" -UserAgent "Mozilla/5.0" -ErrorAction Stop) }
-                    catch { Write-Host "    [ ERROR ] Fallo crÃ­tico de red." -ForegroundColor Red }
+                    catch { Write-Host "    [ ERROR ] Fallo crítico de red." -ForegroundColor Red }
                     Read-Host "Presiona ENTER para continuar..."
                 }
                 '3' {
@@ -331,21 +325,21 @@ while ($EstadoMenu -ne "Salir") {
                         $ActiveAdapters = Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null }
                         if ($ActiveAdapters) {
                             foreach ($Adapter in $ActiveAdapters) { Set-DnsClientServerAddress -InterfaceIndex $Adapter.InterfaceIndex -ServerAddresses $DnsServers }
-                            Clear-DnsClientCache; Write-Host "    [ OK ] CachÃ© DNS purgada." -ForegroundColor Green
+                            Clear-DnsClientCache; Write-Host "    [ OK ] Caché DNS purgada." -ForegroundColor Green
                         }
                     } catch { Write-Host "    [ ERROR ] Fallo en el test de red." -ForegroundColor Red }
                     Read-Host "Presiona ENTER para continuar..."
                 }
                 '5' {
-                    Write-Host "`n[+] Desactivando HibernaciÃ³n a nivel de Kernel..." -ForegroundColor Cyan
+                    Write-Host "`n[+] Desactivando Hibernación a nivel de Kernel..." -ForegroundColor Cyan
                     try {
                         powercfg.exe /hibernate off
-                        Write-Host "    [ OK ] HibernaciÃ³n desactivada. Archivo hiberfil.sys purgado con Ã©xito." -ForegroundColor Green
+                        Write-Host "    [ OK ] Hibernación desactivada. Archivo hiberfil.sys purgado con éxito." -ForegroundColor Green
                     } catch { Write-Host "    [ ERROR ] Fallo al ejecutar powercfg." -ForegroundColor Red }
                     Read-Host "Presiona ENTER para continuar..."
                 }
                 '6' {
-                    Write-Host "`n[+] Analizando bus PCIe vÃ­a WMI para soporte HAGS..." -ForegroundColor Cyan
+                    Write-Host "`n[+] Analizando bus PCIe vía WMI para soporte HAGS..." -ForegroundColor Cyan
                     try {
                         $ControladoresVideo = Get-CimInstance -ClassName Win32_VideoController -ErrorAction Stop
                         $GpuCompatible = $false
@@ -370,23 +364,23 @@ while ($EstadoMenu -ne "Salir") {
                             Set-ItemProperty -Path $RegistryPath -Name "HwSchMode" -Value 2 -Type DWord
                             Write-Host "    [ OK ] Hardware Accelerated GPU Scheduling (HAGS) inyectado. Reinicio requerido." -ForegroundColor Green
                         } else {
-                            Write-Host "    [ i ] OperaciÃ³n abortada. No se encontrÃ³ arquitectura GPU dedicada compatible." -ForegroundColor Yellow
+                            Write-Host "    [ i ] Operación abortada. No se encontró arquitectura GPU dedicada compatible." -ForegroundColor Yellow
                             Write-Host "    [ i ] Compatible con: NVIDIA GTX/RTX, AMD Radeon RX, Intel Arc A/B-series." -ForegroundColor DarkGray
                         }
-                    } catch { Write-Host "    [ ERROR ] Fallo crÃ­tico al invocar el proveedor WMI de video." -ForegroundColor Red }
+                    } catch { Write-Host "    [ ERROR ] Fallo crítico al invocar el proveedor WMI de video." -ForegroundColor Red }
                     Read-Host "Presiona ENTER para continuar..."
                 }
                 '0' { $EstadoMenu = "Principal" }
             }
         }
 
-        # --- MÃ“DULO 4: MANTENIMIENTO ---
+        # --- MÓDULO 4: MANTENIMIENTO ---
         "SeccionMantenimiento" {
-            Write-Host "MÃ“DULO 4: MANTENIMIENTO > LIMPIEZA Y REPARACIÃ“N" -ForegroundColor Yellow
-            Write-Host "1. ReparaciÃ³n de Integridad del Sistema (DISM + SFC)"
+            Write-Host "MÓDULO 4: MANTENIMIENTO > LIMPIEZA Y REPARACIÓN" -ForegroundColor Yellow
+            Write-Host "1. Reparación de Integridad del Sistema (DISM + SFC)"
             Write-Host "2. Purgar Archivos Temporales (System, User, Prefetch)"
             Write-Host "3. Limpieza de Almacenamiento Profunda (Sagerun + ResetBase)"
-            Write-Host "0. Volver al MenÃº Principal"
+            Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona una tarea"
             switch ($Opcion) {
@@ -413,14 +407,14 @@ while ($EstadoMenu -ne "Salir") {
             }
         }
 
-        # --- MÃ“DULO 5: DESCARGAS WINDOWS ---
+        # --- MÓDULO 5: DESCARGAS WINDOWS ---
         "SeccionOS" {
-            Write-Host "MÃ“DULO 5: DESCARGAS WINDOWS > DIRECTORIOS MAS OFICIALES" -ForegroundColor Yellow
+            Write-Host "MÓDULO 5: DESCARGAS WINDOWS > DIRECTORIOS MAS OFICIALES" -ForegroundColor Yellow
             Write-Host "1. Obtener ISOs de Windows"
             Write-Host "2. Obtener instaladores Office (C2R)"
-            Write-Host "0. Volver al MenÃº Principal"
+            Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
-            $Opcion = Read-Host "Selecciona una opciÃ³n"
+            $Opcion = Read-Host "Selecciona una opción"
             switch ($Opcion) {
                 # FIX: se agrega $EstadoMenu = "Principal" para evitar loop infinito al abrir el browser
                 '1' { Start-Process "https://massgrave.dev/windows_11_links"; $EstadoMenu = "Principal"; Start-Sleep -Seconds 1 }
@@ -429,18 +423,18 @@ while ($EstadoMenu -ne "Salir") {
             }
         }
 
-        # --- MÃ“DULO 6: ARREPENTIMIENTO ---
+        # --- MÓDULO 6: ARREPENTIMIENTO ---
         "SeccionArrepentimiento" {
-            Write-Host "SALA DE ARREPENTIMIENTO > ROLLBACK QUIRÃšRGICO" -ForegroundColor Red
+            Write-Host "SALA DE ARREPENTIMIENTO > ROLLBACK QUIRÚRGICO" -ForegroundColor Red
             Write-Host "1. Deshacer Aplicaciones Instaladas (Purga selectiva de Winget)"
             Write-Host "2. Deshacer Tweak de Arranque (Borrar Registro Serialize)"
-            Write-Host "3. Restaurar DNS a AutomÃ¡tico (Volver a DHCP del ISP)"
-            Write-Host "4. Restaurar HibernaciÃ³n (Reactivar hiberfil.sys)"
-            Write-Host "0. Volver al MenÃº Principal"
+            Write-Host "3. Restaurar DNS a Automático (Volver a DHCP del ISP)"
+            Write-Host "4. Restaurar Hibernación (Reactivar hiberfil.sys)"
+            Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             Write-Host "[!] NOTA: Los Tweaks aplicados con CTT deben revertirse desde su interfaz." -ForegroundColor DarkGray
 
-            $Opcion = Read-Host "`nSelecciona quÃ© cambio individual deseas revertir"
+            $Opcion = Read-Host "`nSelecciona qué cambio individual deseas revertir"
             switch ($Opcion) {
                 '1' {
                     if ($global:HistorialApps.Count -eq 0) {
@@ -452,7 +446,7 @@ while ($EstadoMenu -ne "Salir") {
                         }
                         Write-Host "    0. Cancelar y Volver" -ForegroundColor DarkGray
 
-                        $Entrada = Read-Host "`nSelecciona el nÃºmero de las apps a borrar (Ej: 1 2) o 0 para cancelar"
+                        $Entrada = Read-Host "`nSelecciona el número de las apps a borrar (Ej: 1 2) o 0 para cancelar"
 
                         if (($Entrada -split '\s+') -notcontains '0') {
                             $AppsABorrar = @()
@@ -473,7 +467,7 @@ while ($EstadoMenu -ne "Salir") {
 
                             $global:HistorialApps = $global:HistorialApps | Where-Object { $_ -notin $AppsABorrar }
                             $global:HistorialApps | Out-File -FilePath $LogPath -Force
-                        } else { Write-Host "    [!] OperaciÃ³n cancelada." -ForegroundColor Yellow }
+                        } else { Write-Host "    [!] Operación cancelada." -ForegroundColor Yellow }
                     }
                     Read-Host "`nPresiona ENTER para continuar..."
                 }
@@ -482,32 +476,32 @@ while ($EstadoMenu -ne "Salir") {
                     $RegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize"
                     if (Test-Path $RegistryPath) {
                         Remove-Item -Path $RegistryPath -Force -Recurse | Out-Null
-                        Write-Host "    [ OK ] Clave 'Serialize' eliminada. El retraso de inicio volviÃ³ a la normalidad de Windows." -ForegroundColor Green
+                        Write-Host "    [ OK ] Clave 'Serialize' eliminada. El retraso de inicio volvió a la normalidad de Windows." -ForegroundColor Green
                     } else { Write-Host "    [!] El Tweak de registro no estaba aplicado." -ForegroundColor Yellow }
                     Read-Host "`nPresiona ENTER para continuar..."
                 }
                 '3' {
-                    Write-Host "`n[+] Restaurando DNS a AutomÃ¡tico (DHCP)..." -ForegroundColor Cyan
+                    Write-Host "`n[+] Restaurando DNS a Automático (DHCP)..." -ForegroundColor Cyan
                     $ActiveAdapters = Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null }
                     if ($ActiveAdapters) {
                         foreach ($Adapter in $ActiveAdapters) {
                             Set-DnsClientServerAddress -InterfaceIndex $Adapter.InterfaceIndex -ResetServerAddresses
-                            Write-Host "    [ OK ] DNS automÃ¡tico restaurado en el adaptador: $($Adapter.InterfaceAlias)" -ForegroundColor Green
+                            Write-Host "    [ OK ] DNS automático restaurado en el adaptador: $($Adapter.InterfaceAlias)" -ForegroundColor Green
                         }
-                        Clear-DnsClientCache; Write-Host "    [ OK ] CachÃ© DNS purgada." -ForegroundColor Green
+                        Clear-DnsClientCache; Write-Host "    [ OK ] Caché DNS purgada." -ForegroundColor Green
                     } else { Write-Host "    [ ERROR ] No se detectaron adaptadores de red activos." -ForegroundColor Red }
                     Read-Host "`nPresiona ENTER para continuar..."
                 }
                 '4' {
-                    Write-Host "`n[+] Restaurando HibernaciÃ³n a nivel de Kernel..." -ForegroundColor Cyan
+                    Write-Host "`n[+] Restaurando Hibernación a nivel de Kernel..." -ForegroundColor Cyan
                     try {
                         powercfg.exe /hibernate on
-                        Write-Host "    [ OK ] HibernaciÃ³n reactivada con Ã©xito." -ForegroundColor Green
+                        Write-Host "    [ OK ] Hibernación reactivada con éxito." -ForegroundColor Green
                     } catch { Write-Host "    [ ERROR ] Fallo al ejecutar powercfg." -ForegroundColor Red }
                     Read-Host "`nPresiona ENTER para continuar..."
                 }
                 '0' { $EstadoMenu = "Principal" }
-                default { Write-Host "    [!] OpciÃ³n no vÃ¡lida." -ForegroundColor Red; Start-Sleep -Seconds 1 }
+                default { Write-Host "    [!] Opción no válida." -ForegroundColor Red; Start-Sleep -Seconds 1 }
             }
         }
     }
