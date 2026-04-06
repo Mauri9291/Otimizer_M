@@ -9,6 +9,16 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
+# 1. VERIFICACIÓN ESTRICTA DE PRIVILEGIOS (UAC)
+if (-not ([Security.Principal.WindowsPrincipal]...)) {
+    ...
+    exit
+}
+
+# FIX ENCODING
+chcp 65001 | Out-Null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 # --- INICIO DE LA MEMORIA RAM DEL SCRIPT Y PROTOCOLOS MODERNOS ---
 # Forzar TLS 1.3 y 1.2 para mÃ¡xima compatibilidad en 2026
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls13 -bor [Net.SecurityProtocolType]::Tls12
