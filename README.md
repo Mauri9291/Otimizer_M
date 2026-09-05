@@ -10,12 +10,12 @@ Script personal de administración IT para Windows, orientado a post-instalació
 
 Menú interactivo en PowerShell con 6 módulos:
 
-- **Apps** — Instalación silenciosa vía Winget (Gaming, Browsers, Chats, Música, Herramientas, etc.)
+- **Apps** — Instalación silenciosa vía Winget (Gaming, Browsers, Chats, Música, Herramientas, Remoto & Monitoreo)
 - **Drivers** — Acceso directo a los portales oficiales de NVIDIA, AMD e Intel
-- **Post Install** — Activación MAS, optimización con CTT WinUtil, tweak de arranque, benchmark de DNS automático, hibernación y HAGS
-- **Mantenimiento** — DISM + SFC, limpieza de temporales y Component Store
+- **Post Install** — Activación MAS, optimización con CTT WinUtil, arranque rápido (StartupDelay + WaitForIdleState), benchmark DNS, hibernación, HAGS, punto de restauración, telemetría Windows Insider (Beta) e inyección de flags en Chrome
+- **Mantenimiento** — DISM + SFC, limpieza segura de temporales (sin tocar Prefetch) y Component Store
 - **Descargas** — Links directos a ISOs de Windows y Office (vía MAS)
-- **Arrepentimiento** — Rollback quirúrgico: desinstala apps registradas en sesión, revierte tweaks de registro, restaura DNS y hibernación
+- **Arrepentimiento** — Rollback quirúrgico: desinstala apps de sesión, revierte tweaks de registro, restaura DNS, hibernación, HAGS y telemetría
 
 ---
 
@@ -32,7 +32,7 @@ $tmp = "$env:TEMP\itadmin.ps1"; if (Test-Path $tmp) { Remove-Item $tmp -Force };
 ## Requisitos
 
 - Windows 10/11
-- PowerShell 5.1 o superior (recomendado PS 7+)
+- PowerShell 5.1 o superior (totalmente compatible con Windows PowerShell 5.1 y PS 7+)
 - Winget instalado (viene por defecto en Windows 11 y W10 actualizado)
 - Ejecutar siempre como **Administrador**
 
@@ -41,6 +41,8 @@ $tmp = "$env:TEMP\itadmin.ps1"; if (Test-Path $tmp) { Remove-Item $tmp -Force };
 ## Notas técnicas
 
 - Las instalaciones usan `--scope machine` por defecto. Los paquetes que no lo soportan (como Spotify) se instalan en modo per-user automáticamente.
-- El módulo de Arrepentimiento persiste el historial de instalaciones en `%TEMP%\installs_session.log` para poder revertir entre sesiones.
-- HAGS compatible con NVIDIA GTX/RTX, AMD Radeon RX e Intel Arc A/B-series.
-- El benchmark de DNS compara Google, Cloudflare y Quad9 y aplica el más rápido automáticamente.
+- El módulo de Arrepentimiento persiste el historial de instalaciones en `%LOCALAPPDATA%\Otimizer_M\installs_session.log` para poder revertir entre sesiones sin riesgo de auto-borrado por limpieza de temporales.
+- HAGS compatible con NVIDIA GTX/RTX, AMD Radeon RX e Intel Arc A/B-series con soporte para reversión completa.
+- El benchmark de DNS compara Google, Cloudflare y Quad9 con soporte nativo multiplataforma (híbrido `.Latency` y `.ResponseTime`).
+- Flags de Chrome inyectados directamente en `%LOCALAPPDATA%\Google\Chrome\User Data\Local State` (no dependen de accesos directos y respetan el interruptor manual de aceleración por hardware para Discord/DRM).
+- Script guardado en UTF-8 con BOM para evitar fallos de parseo en Windows PowerShell 5.1.

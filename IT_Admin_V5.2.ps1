@@ -5,7 +5,9 @@
 
 # 1. VERIFICACIÓN ESTRICTA DE PRIVILEGIOS (UAC)
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    $PowerShellExe = (Get-Process -Id $PID).Path
+    if (-not $PowerShellExe) { $PowerShellExe = "powershell" }
+    Start-Process $PowerShellExe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
 
@@ -16,10 +18,26 @@ chcp 65001 | Out-Null
 # --- INICIO DE LA MEMORIA RAM DEL SCRIPT Y PROTOCOLOS MODERNOS ---
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls13 -bor [Net.SecurityProtocolType]::Tls12
 
-$LogPath = "$env:TEMP\installs_session.log"
-if (Test-Path $LogPath) { $global:HistorialApps = @(Get-Content $LogPath) } else { $global:HistorialApps = @() }
+# Directorio de persistencia seguro (evita ser borrado por limpieza de temporales)
+$AppDir = Join-Path $env:LOCALAPPDATA "Otimizer_M"
+if (-not (Test-Path $AppDir)) { New-Item -Path $AppDir -ItemType Directory -Force | Out-Null }
+$LogPath = Join-Path $AppDir "installs_session.log"
+
+# Migración de log antiguo desde %TEMP% si existiera
+$OldTempLog = "$env:TEMP\installs_session.log"
+if ((Test-Path $OldTempLog) -and (-not (Test-Path $LogPath))) {
+    Copy-Item $OldTempLog $LogPath -Force
+}
+
+if (Test-Path $LogPath) { $global:HistorialApps = @(Get-Content $LogPath -Encoding UTF8) } else { $global:HistorialApps = @() }
 
 Write-Host "`n[!] Verificando estado del motor Winget..." -ForegroundColor DarkGray
+if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host "    [ ALERTA ] Winget no está instalado o no se encuentra en el PATH del sistema." -ForegroundColor Red
+    Write-Host "    Para aprovisionar aplicaciones, instala 'Instalador de aplicaciones' desde Microsoft Store o GitHub." -ForegroundColor Yellow
+} else {
+    Write-Host "    [ OK ] Motor Winget operativo." -ForegroundColor Green
+}
 
 function Instalar-Paquete {
     param (
@@ -36,10 +54,23 @@ function Instalar-Paquete {
         Write-Host "    [ OK ] Instalación exitosa o ya presente." -ForegroundColor Green
         if ($WingetID -notin $global:HistorialApps) {
             $global:HistorialApps += $WingetID
-            $WingetID | Out-File -FilePath $LogPath -Append
+            $WingetID | Out-File -FilePath $LogPath -Append -Encoding utf8
         }
     } else {
         Write-Host "    [ ERROR ] Fallo. Código: $($Proceso.ExitCode)" -ForegroundColor Red
+    }
+}
+
+function Crear-PuntoRestauracion {
+    param ([string]$Descripcion = "Otimizer_M_Checkpoint")
+    Write-Host "`n[+] Creando Punto de Restauración del Sistema..." -ForegroundColor Cyan
+    try {
+        Enable-ComputerRestore -Drive "$env:SystemDrive" -ErrorAction SilentlyContinue
+        Checkpoint-Computer -Description $Descripcion -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+        Write-Host "    [ OK ] Punto de restauración creado con éxito." -ForegroundColor Green
+    } catch {
+        Write-Host "    [ ! ] No se pudo crear el punto de restauración: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "    (Puede estar desactivado en Protección del Sistema o haber alcanzado el límite diario)." -ForegroundColor DarkGray
     }
 }
 
@@ -107,6 +138,7 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "6. Gestores de descarga"
             Write-Host "7. Streaming"
             Write-Host "8. Herramientas"
+            Write-Host "9. Remoto & Monitoreo"
             Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona una categoría"
@@ -115,6 +147,7 @@ while ($EstadoMenu -ne "Salir") {
                 '3' { $EstadoMenu = "Chats" } '4' { $EstadoMenu = "Browsers" }
                 '5' { $EstadoMenu = "GestionArchivos" } '6' { $EstadoMenu = "GestoresDescarga" }
                 '7' { $EstadoMenu = "Streaming" } '8' { $EstadoMenu = "Herramientas" }
+                '9' { $EstadoMenu = "RemotoMonitoreo" }
                 '0' { $EstadoMenu = "Principal" }
             }
         }
@@ -247,6 +280,22 @@ while ($EstadoMenu -ne "Salir") {
             Procesar-Lote -PaquetesAInstalar $Lista
         }
 
+        "RemotoMonitoreo" {
+            Write-Host "APPS > REMOTO & MONITOREO" -ForegroundColor Yellow
+            Write-Host "1. Tailscale | 2. RustDesk | 3. HWiNFO64 | 0. Volver"
+            $Entrada = Read-Host "Selecciona apps (Ej: 1 2) o 0 para volver"
+            if (($Entrada -split '\s+') -contains '0') { $EstadoMenu = "SeccionApps"; continue }
+            $Lista = @()
+            foreach ($Opc in ($Entrada -split '\s+')) {
+                switch ($Opc) {
+                    '1' { $Lista += [pscustomobject]@{ Nombre = "Tailscale"; ID = "Tailscale.Tailscale"; PerUser = $false } }
+                    '2' { $Lista += [pscustomobject]@{ Nombre = "RustDesk"; ID = "RustDesk.RustDesk"; PerUser = $false } }
+                    '3' { $Lista += [pscustomobject]@{ Nombre = "HWiNFO64"; ID = "REALiX.HWiNFO"; PerUser = $false } }
+                }
+            }
+            Procesar-Lote -PaquetesAInstalar $Lista
+        }
+
         # --- MÓDULO 2: DRIVERS ---
         "SeccionDrivers" {
             Write-Host "MÓDULO 2: DRIVERS > PORTALES DE DESCARGA OFICIALES" -ForegroundColor Yellow
@@ -269,10 +318,13 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "MÓDULO 3: POST INSTALL > TWEAKS Y ACTIVACIÓN" -ForegroundColor Yellow
             Write-Host "1. Activación del Sistema (MAS Automático)"
             Write-Host "2. Optimizar Windows (Chris Titus Tech WinUtil)"
-            Write-Host "3. Optimizar Apps de Arranque (Ajuste de Registro Serialize)"
+            Write-Host "3. Optimizar Apps de Arranque (Startup Delay + WaitForIdleState)"
             Write-Host "4. Optimizar DNS de Red (Auto-Benchmark Multi-Target)"
             Write-Host "5. Desactivar Hibernación (Recuperar espacio en disco)"
             Write-Host "6. Habilitar HAGS (Detección Automática GPU NVIDIA/AMD/Intel Arc)"
+            Write-Host "7. Crear Punto de Restauración del Sistema"
+            Write-Host "8. Habilitar Telemetría Windows Insider Beta (Fix DiagTrack)"
+            Write-Host "9. Inyectar Flags de Rendimiento en Google Chrome"
             Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             $Opcion = Read-Host "Selecciona una tarea"
@@ -291,22 +343,29 @@ while ($EstadoMenu -ne "Salir") {
                     Read-Host "Presiona ENTER para continuar..."
                 }
                 '3' {
-                    Write-Host "`n[+] Aplicando Tweak de Registro (Startup Delay)..." -ForegroundColor Cyan
+                    Write-Host "`n[+] Aplicando Tweak de Registro (Startup Delay + WaitForIdleState)..." -ForegroundColor Cyan
                     $RegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize"
                     if (-not (Test-Path $RegistryPath)) { New-Item -Path $RegistryPath -Force | Out-Null }
                     try {
                         Set-ItemProperty -Path $RegistryPath -Name "StartupDelayInMSec" -Value 0 -Type DWord
-                        Write-Host "    [ OK ] Valores inyectados correctamente." -ForegroundColor Green
-                    } catch { Write-Host "    [ ERROR ] Fallo al escribir en el registro." -ForegroundColor Red }
+                        Set-ItemProperty -Path $RegistryPath -Name "WaitForIdleState" -Value 0 -Type DWord
+                        Write-Host "    [ OK ] Valores StartupDelayInMSec=0 y WaitForIdleState=0 inyectados correctamente." -ForegroundColor Green
+                    } catch { Write-Host "    [ ERROR ] Fallo al escribir en el registro: $($_.Exception.Message)" -ForegroundColor Red }
                     Read-Host "Presiona ENTER para continuar..."
                 }
                 '4' {
                     Write-Host "`n[+] Multi-Benchmarking DNS (Google vs Cloudflare vs Quad9)..." -ForegroundColor Cyan
                     try {
-                        $Targets = @{ "Google" = "8.8.8.8"; "Cloudflare" = "1.1.1.1"; "Quad9" = "9.9.9.9" }
+                        $Targets = [ordered]@{ "Google" = "8.8.8.8"; "Cloudflare" = "1.1.1.1"; "Quad9" = "9.9.9.9" }
                         $Results = foreach ($Name in $Targets.Keys) {
-                            $Time = (1..3 | ForEach-Object { (Test-Connection $Targets[$Name] -Count 1 -ErrorAction SilentlyContinue).Latency } | Measure-Object -Average).Average
-                            [pscustomobject]@{ Provider = $Name; Latency = [math]::Round($Time, 2); IP = $Targets[$Name] }
+                            $Time = (1..3 | ForEach-Object {
+                                $Ping = Test-Connection $Targets[$Name] -Count 1 -ErrorAction SilentlyContinue
+                                # Compatibilidad híbrida: PS 7+ usa .Latency y PS 5.1 usa .ResponseTime
+                                if ($null -ne $Ping.Latency) { [double]$Ping.Latency }
+                                elseif ($null -ne $Ping.ResponseTime) { [double]$Ping.ResponseTime }
+                                else { 999.0 }
+                            } | Measure-Object -Average).Average
+                            [pscustomobject]@{ Provider = $Name; Latency = [math]::Round([double]$Time, 2); IP = $Targets[$Name] }
                         }
                         $Best = $Results | Sort-Object Latency | Select-Object -First 1
                         Write-Host "    [*] Ganador: $($Best.Provider) con $($Best.Latency)ms" -ForegroundColor Green
@@ -320,7 +379,7 @@ while ($EstadoMenu -ne "Salir") {
                             foreach ($Adapter in $ActiveAdapters) { Set-DnsClientServerAddress -InterfaceIndex $Adapter.InterfaceIndex -ServerAddresses $DnsServers }
                             Clear-DnsClientCache; Write-Host "    [ OK ] Caché DNS purgada." -ForegroundColor Green
                         }
-                    } catch { Write-Host "    [ ERROR ] Fallo en el test de red." -ForegroundColor Red }
+                    } catch { Write-Host "    [ ERROR ] Fallo en el test de red: $($_.Exception.Message)" -ForegroundColor Red }
                     Read-Host "Presiona ENTER para continuar..."
                 }
                 '5' {
@@ -360,6 +419,73 @@ while ($EstadoMenu -ne "Salir") {
                     } catch { Write-Host "    [ ERROR ] Fallo crítico al invocar el proveedor WMI de video." -ForegroundColor Red }
                     Read-Host "Presiona ENTER para continuar..."
                 }
+                '7' {
+                    Crear-PuntoRestauracion -Descripcion "Otimizer_M_Manual_Checkpoint"
+                    Read-Host "Presiona ENTER para continuar..."
+                }
+                '8' {
+                    Write-Host "`n[+] Configurando telemetría y DiagTrack para Windows Insider Beta..." -ForegroundColor Cyan
+                    $PolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection"
+                    if (-not (Test-Path $PolicyPath)) { New-Item -Path $PolicyPath -Force | Out-Null }
+                    try {
+                        Set-ItemProperty -Path $PolicyPath -Name "AllowTelemetry" -Value 3 -Type DWord
+                        Set-Service -Name diagtrack -StartupType Automatic -ErrorAction SilentlyContinue
+                        Start-Service -Name diagtrack -ErrorAction SilentlyContinue
+                        Write-Host "    [ OK ] Telemetría Nivel 3 (Full) y servicio DiagTrack activados con éxito." -ForegroundColor Green
+                    } catch { Write-Host "    [ ERROR ] Fallo al configurar telemetría: $($_.Exception.Message)" -ForegroundColor Red }
+                    Read-Host "Presiona ENTER para continuar..."
+                }
+                '9' {
+                    Write-Host "`n[+] Inyectando Flags de rendimiento en Google Chrome..." -ForegroundColor Cyan
+                    $ChromeProcs = Get-Process chrome -ErrorAction SilentlyContinue
+                    if ($ChromeProcs) {
+                        Write-Host "    [!] Cerrando instancias de Google Chrome para actualizar Local State..." -ForegroundColor Yellow
+                        $ChromeProcs | Stop-Process -Force
+                        Start-Sleep -Seconds 1
+                    }
+                    
+                    $ChromeDir = "$env:LOCALAPPDATA\Google\Chrome\User Data"
+                    $LocalStateFile = Join-Path $ChromeDir "Local State"
+                    if (-not (Test-Path $ChromeDir)) { New-Item -Path $ChromeDir -ItemType Directory -Force | Out-Null }
+                    
+                    try {
+                        $JsonData = @{}
+                        if (Test-Path $LocalStateFile) {
+                            $RawContent = Get-Content -Path $LocalStateFile -Raw -Encoding UTF8
+                            if ($RawContent) { $JsonData = $RawContent | ConvertFrom-Json }
+                        }
+                        
+                        if (-not $JsonData.browser) {
+                            $JsonData | Add-Member -MemberType NoteProperty -Name "browser" -Value ([pscustomobject]@{}) -Force
+                        }
+                        
+                        $TargetFlags = @(
+                            "enable-gpu-rasterization",
+                            "ignore-gpu-blocklist",
+                            "enable-zero-copy",
+                            "enable-parallel-downloading"
+                        )
+                        
+                        $CurrentFlags = @()
+                        if ($JsonData.browser.enabled_labs_experiments) {
+                            $CurrentFlags = @($JsonData.browser.enabled_labs_experiments)
+                        }
+                        
+                        foreach ($Flag in $TargetFlags) {
+                            if ($Flag -notin $CurrentFlags) {
+                                $CurrentFlags += $Flag
+                            }
+                        }
+                        
+                        $JsonData.browser | Add-Member -MemberType NoteProperty -Name "enabled_labs_experiments" -Value $CurrentFlags -Force
+                        $JsonData | ConvertTo-Json -Depth 30 | Set-Content -Path $LocalStateFile -Encoding UTF8
+                        Write-Host "    [ OK ] Flags inyectados en Local State: GPU rasterization, Override GPU list, Zero-copy, Parallel downloading." -ForegroundColor Green
+                        Write-Host "    [ i ] La aceleración de hardware no se modificó para mantener compatibilidad con Discord/DRM." -ForegroundColor DarkGray
+                    } catch {
+                        Write-Host "    [ ERROR ] Fallo al inyectar flags en Chrome: $($_.Exception.Message)" -ForegroundColor Red
+                    }
+                    Read-Host "Presiona ENTER para continuar..."
+                }
                 '0' { $EstadoMenu = "Principal" }
             }
         }
@@ -380,18 +506,26 @@ while ($EstadoMenu -ne "Salir") {
                     Read-Host "Ciclo completado. Presiona ENTER para continuar..."
                 }
                 '2' {
-                    Write-Host "`n[+] Purgando temporales..." -ForegroundColor Cyan
-                    foreach ($Dir in @("$env:TEMP\*", "$env:windir\Temp\*", "$env:windir\Prefetch\*")) {
-                        Remove-Item -Path $Dir -Recurse -Force -ErrorAction SilentlyContinue
+                    Write-Host "`n[+] Purgando temporales de usuario y sistema..." -ForegroundColor Cyan
+                    foreach ($Dir in @("$env:TEMP\*", "$env:windir\Temp\*")) {
+                        Get-ChildItem -Path $Dir -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike "*Otimizer_M*" } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
                     }
-                    Write-Host "    [ OK ] Limpieza completada." -ForegroundColor Green; Read-Host "Presiona ENTER para continuar..."
+                    Write-Host "    [ OK ] Limpieza de archivos temporales completada." -ForegroundColor Green; Read-Host "Presiona ENTER para continuar..."
                 }
                 '3' {
-                    Write-Host "`n[+] Iniciando Limpieza de Almacenamiento Inteligente (Zero Touch)..." -ForegroundColor Cyan
-                    Start-Process "cleanmgr.exe" -ArgumentList "/verylowdisk" -Wait
-                    Write-Host "`n[+] Purgando Component Store de Windows Update..." -ForegroundColor Cyan
-                    Dism /Online /Cleanup-Image /StartComponentCleanup /ResetBase
-                    Write-Host "    [ OK ] Limpieza profunda finalizada." -ForegroundColor Green; Read-Host "Presiona ENTER para continuar..."
+                    Write-Host "`n[!] ADVERTENCIA: La purga profunda con ResetBase elimina versiones previas de componentes de Windows Update." -ForegroundColor Yellow
+                    Write-Host "    Una vez completada, NO podrás desinstalar las actualizaciones instaladas hasta la fecha." -ForegroundColor Yellow
+                    $ConfirmResetBase = (Read-Host "`n¿Deseas continuar con la limpieza profunda? (Y/N)").Trim().ToLower()
+                    if ($ConfirmResetBase -eq 'y') {
+                        Write-Host "`n[+] Iniciando Limpieza de Almacenamiento Inteligente (Zero Touch)..." -ForegroundColor Cyan
+                        Start-Process "cleanmgr.exe" -ArgumentList "/verylowdisk" -Wait
+                        Write-Host "`n[+] Purgando Component Store de Windows Update..." -ForegroundColor Cyan
+                        Dism /Online /Cleanup-Image /StartComponentCleanup /ResetBase
+                        Write-Host "    [ OK ] Limpieza profunda finalizada." -ForegroundColor Green
+                    } else {
+                        Write-Host "`n[!] Operación cancelada por el usuario." -ForegroundColor DarkGray
+                    }
+                    Read-Host "Presiona ENTER para continuar..."
                 }
                 '0' { $EstadoMenu = "Principal" }
             }
@@ -419,6 +553,8 @@ while ($EstadoMenu -ne "Salir") {
             Write-Host "2. Deshacer Tweak de Arranque (Borrar Registro Serialize)"
             Write-Host "3. Restaurar DNS a Automático (Volver a DHCP del ISP)"
             Write-Host "4. Restaurar Hibernación (Reactivar hiberfil.sys)"
+            Write-Host "5. Restaurar HAGS (Desactivar Hardware Accelerated GPU Scheduling)"
+            Write-Host "6. Restaurar Telemetría a Nivel Básico (Revertir Insider Beta)"
             Write-Host "0. Volver al Menú Principal"
             Write-Host "-----------------------------------------" -ForegroundColor Cyan
             Write-Host "[!] NOTA: Los Tweaks aplicados con CTT deben revertirse desde su interfaz." -ForegroundColor DarkGray
@@ -454,7 +590,7 @@ while ($EstadoMenu -ne "Salir") {
                             }
                             
                             $global:HistorialApps = $global:HistorialApps | Where-Object { $_ -notin $AppsABorrar }
-                            $global:HistorialApps | Out-File -FilePath $LogPath -Force
+                            $global:HistorialApps | Out-File -FilePath $LogPath -Force -Encoding utf8
                         } else { Write-Host "    [!] Operación cancelada." -ForegroundColor Yellow }
                     }
                     Read-Host "`nPresiona ENTER para continuar..."
@@ -486,6 +622,26 @@ while ($EstadoMenu -ne "Salir") {
                         powercfg.exe /hibernate on
                         Write-Host "    [ OK ] Hibernación reactivada con éxito." -ForegroundColor Green
                     } catch { Write-Host "    [ ERROR ] Fallo al ejecutar powercfg." -ForegroundColor Red }
+                    Read-Host "`nPresiona ENTER para continuar..."
+                }
+                '5' {
+                    Write-Host "`n[+] Restaurando HAGS (Hardware Accelerated GPU Scheduling)..." -ForegroundColor Cyan
+                    $RegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
+                    if ((Test-Path $RegistryPath) -and ((Get-ItemProperty -Path $RegistryPath -Name "HwSchMode" -ErrorAction SilentlyContinue) -ne $null)) {
+                        Remove-ItemProperty -Path $RegistryPath -Name "HwSchMode" -Force -ErrorAction SilentlyContinue
+                        Write-Host "    [ OK ] Clave HwSchMode eliminada. HAGS restaurado al valor por defecto. Reinicio requerido." -ForegroundColor Green
+                    } else {
+                        Write-Host "    [!] HAGS no estaba configurado o ya se encuentra en su valor por defecto." -ForegroundColor Yellow
+                    }
+                    Read-Host "`nPresiona ENTER para continuar..."
+                }
+                '6' {
+                    Write-Host "`n[+] Restaurando Telemetría al valor predeterminado (Nivel 1)..." -ForegroundColor Cyan
+                    $PolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection"
+                    if (Test-Path $PolicyPath) {
+                        Set-ItemProperty -Path $PolicyPath -Name "AllowTelemetry" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        Write-Host "    [ OK ] Telemetría restablecida a nivel básico (1)." -ForegroundColor Green
+                    }
                     Read-Host "`nPresiona ENTER para continuar..."
                 }
                 '0' { $EstadoMenu = "Principal" }
